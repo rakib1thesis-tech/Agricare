@@ -1,0 +1,7 @@
+{
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "name": "Agricare - Agricultural Monitoring System",
+  "description": ""
+}
