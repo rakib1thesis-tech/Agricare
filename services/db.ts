@@ -5,13 +5,15 @@ import { getFirestore, doc, getDoc, setDoc, collection, getDocs, query, where, d
 import { User, Field, Sensor } from '../types';
 
 // Configuration for project: agricare-4c725
+// Replace your old config with this one from your screenshot
 const firebaseConfig = {
   apiKey: "AIzaSyAZ7-leDg1XzaH8wHJn_0C2rz4qathFhJw",
   authDomain: "agricare2-c8edb.firebaseapp.com",
   projectId: "agricare2-c8edb",
   storageBucket: "agricare2-c8edb.firebasestorage.app",
   messagingSenderId: "894995380966",
-  appId: "1:894995380966:web:feaa35ce8f1237b6861927"
+  appId: "1:894995380966:web:2ab5d0e9909a0b50861927", // Updated ID
+  measurementId: "G-7NWCRRY2FG"
 };
 
 const app: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
