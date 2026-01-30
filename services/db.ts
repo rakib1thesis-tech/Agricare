@@ -1,11 +1,9 @@
 
-// Fix: Use 'firebase/compat/app' to support namespaced properties like .apps, .auth(), and .firestore()
-import firebase from 'firebase/compat/app';
-import 'firebase/compat/auth';
-import 'firebase/compat/firestore';
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, Auth } from 'firebase/auth';
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs, query, where, deleteDoc, Firestore } from 'firebase/firestore';
 import { User, Field, Sensor } from '../types';
 
-// Configuration for project: agricare-4c725
 const firebaseConfig = {
   apiKey: "AIzaSyCeyl_T15XCsu0-tbXoXaZ2t7C3oMLjyF8",
   authDomain: "agricare-4c725.firebaseapp.com",
@@ -15,20 +13,22 @@ const firebaseConfig = {
   appId: "1:629410782904:web:4d8f43225d8a6b4ad15e4d"
 };
 
-// Initialize Firebase using the compat/namespaced API to resolve export and type errors.
-// Using 'firebase/compat/app' and associated side-effect imports restores the namespaced API.
-const app = firebase.apps.length === 0 ? firebase.initializeApp(firebaseConfig) : firebase.app();
-const auth = firebase.auth();
-const db = firebase.firestore();
+/**
+ * Singleton Firebase Initialization for version 12.8.0
+ */
+const app: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
+/**
+ * Service Exports - Initializing these immediately registers them with the app instance
+ */
+export const auth: Auth = getAuth(app);
+export const db: Firestore = getFirestore(app);
 
 export const isFirebaseEnabled = () => !!db;
 
-/**
- * Enhanced error handler for Firestore permissions.
- */
 const handleFirestoreError = (e: any, context: string) => {
   if (e?.code === 'permission-denied') {
-    console.warn(`Firestore Permission Denied for collection: [${context}]. Falling back to local/mock data state.`);
+    console.warn(`Firestore Permission Denied for: [${context}].`);
     return true;
   }
   console.error(`Firestore Error in ${context}:`, e);
@@ -37,12 +37,11 @@ const handleFirestoreError = (e: any, context: string) => {
 
 export const loginUser = async (email: string, pass: string): Promise<User | null> => {
   try {
-    const cred = await auth.signInWithEmailAndPassword(email, pass);
-    if (!cred.user) return null;
+    const cred = await signInWithEmailAndPassword(auth, email, pass);
+    const userDocRef = doc(db, 'users', cred.user.uid);
+    const userDoc = await getDoc(userDocRef);
     
-    const userDoc = await db.collection('users').doc(cred.user.uid).get();
-    
-    if (userDoc.exists) {
+    if (userDoc.exists()) {
       return userDoc.data() as User;
     } else {
       const fallbackUser: User = {
@@ -52,7 +51,7 @@ export const loginUser = async (email: string, pass: string): Promise<User | nul
         subscriptionPlan: 'basic',
         subscriptionEnd: new Date(Date.now() + 31536000000).toISOString()
       };
-      await db.collection('users').doc(cred.user.uid).set(fallbackUser);
+      await setDoc(userDocRef, fallbackUser);
       return fallbackUser;
     }
   } catch (authError: any) {
@@ -62,11 +61,9 @@ export const loginUser = async (email: string, pass: string): Promise<User | nul
 
 export const registerUser = async (user: User, pass: string): Promise<User> => {
   try {
-    const cred = await auth.createUserWithEmailAndPassword(user.email, pass);
-    if (!cred.user) throw new Error("Registration failed");
-    
+    const cred = await createUserWithEmailAndPassword(auth, user.email, pass);
     const userData = { ...user, id: cred.user.uid };
-    await db.collection('users').doc(cred.user.uid).set(userData);
+    await setDoc(doc(db, 'users', cred.user.uid), userData);
     return userData;
   } catch (e: any) {
     handleFirestoreError(e, 'users');
@@ -77,7 +74,8 @@ export const registerUser = async (user: User, pass: string): Promise<User> => {
 export const syncFields = async (userId: string): Promise<Field[]> => {
   if (!db) return [];
   try {
-    const snap = await db.collection('fields').where('user_id', '==', userId).get();
+    const q = query(collection(db, 'fields'), where('user_id', '==', userId));
+    const snap = await getDocs(q);
     return snap.docs.map(d => d.data() as Field);
   } catch (e) {
     handleFirestoreError(e, 'fields');
@@ -88,7 +86,7 @@ export const syncFields = async (userId: string): Promise<Field[]> => {
 export const addFieldToDb = async (field: Field): Promise<void> => {
   if (!db) throw new Error("Database not initialized");
   try {
-    await db.collection('fields').doc(field.field_id.toString()).set(field);
+    await setDoc(doc(db, 'fields', field.field_id.toString()), field);
   } catch (e) {
     handleFirestoreError(e, 'fields');
   }
@@ -98,7 +96,8 @@ export const syncSensorsFromDb = async (userFields: Field[]): Promise<Sensor[]> 
   if (!db || userFields.length === 0) return [];
   try {
     const userFieldIds = userFields.map(f => f.field_id);
-    const snap = await db.collection('sensors').where('field_id', 'in', userFieldIds).get();
+    const q = query(collection(db, 'sensors'), where('field_id', 'in', userFieldIds));
+    const snap = await getDocs(q);
     return snap.docs.map(d => d.data() as Sensor);
   } catch (e) {
     handleFirestoreError(e, 'sensors');
@@ -109,7 +108,7 @@ export const syncSensorsFromDb = async (userFields: Field[]): Promise<Sensor[]> 
 export const addOrUpdateSensorInDb = async (sensor: Sensor): Promise<void> => {
   if (!db) return;
   try {
-    await db.collection('sensors').doc(sensor.sensor_id.toString()).set(sensor);
+    await setDoc(doc(db, 'sensors', sensor.sensor_id.toString()), sensor);
   } catch (e) {
     handleFirestoreError(e, 'sensors');
   }
@@ -118,7 +117,7 @@ export const addOrUpdateSensorInDb = async (sensor: Sensor): Promise<void> => {
 export const deleteSensorFromDb = async (id: number): Promise<void> => {
   if (!db) return;
   try {
-    await db.collection('sensors').doc(id.toString()).delete();
+    await deleteDoc(doc(db, 'sensors', id.toString()));
   } catch (e) {
     handleFirestoreError(e, 'sensors');
   }
@@ -127,7 +126,7 @@ export const deleteSensorFromDb = async (id: number): Promise<void> => {
 export const saveManualDiagnostic = async (fieldId: number, data: any): Promise<void> => {
   if (!db) return;
   try {
-    await db.collection('manual_diagnostics').doc(fieldId.toString()).set({
+    await setDoc(doc(db, 'manual_diagnostics', fieldId.toString()), {
       field_id: fieldId,
       ...data,
       updated_at: new Date().toISOString()
@@ -140,7 +139,8 @@ export const saveManualDiagnostic = async (fieldId: number, data: any): Promise<
 export const getManualDiagnosticsForFields = async (fieldIds: number[]): Promise<Record<number, any>> => {
   if (!db || fieldIds.length === 0) return {};
   try {
-    const snap = await db.collection('manual_diagnostics').where('field_id', 'in', fieldIds).get();
+    const q = query(collection(db, 'manual_diagnostics'), where('field_id', 'in', fieldIds));
+    const snap = await getDocs(q);
     const results: Record<number, any> = {};
     snap.forEach(doc => {
       const data = doc.data();
