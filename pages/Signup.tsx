@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { User, Field } from '../types';
+import { User, Field, SubscriptionPlan } from '../types';
 import { registerUser, addFieldToDb } from '../services/db';
 
 interface SignupProps {
@@ -30,7 +30,7 @@ const Signup: React.FC<SignupProps> = ({ onSignup, onSwitchToLogin }) => {
         id: '', // Will be assigned by Firebase
         name: formData.name,
         email: formData.email,
-        subscriptionPlan: formData.plan as any,
+        subscriptionPlan: formData.plan as SubscriptionPlan,
         subscriptionEnd: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]
       };
 
