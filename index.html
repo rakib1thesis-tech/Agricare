@@ -16,6 +16,10 @@
         ::-webkit-scrollbar-track { background: #f8fafc; }
         ::-webkit-scrollbar-thumb { background: #10b981; border-radius: 10px; }
     </style>
+    <script>
+      // Shim process.env to prevent crashes if the host environment doesn't inject it
+      window.process = window.process || { env: {} };
+    </script>
 <script type="importmap">
 {
   "imports": {
