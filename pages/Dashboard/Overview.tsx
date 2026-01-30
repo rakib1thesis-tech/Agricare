@@ -153,6 +153,7 @@ const Overview: React.FC<{ user: User }> = ({ user }) => {
                     <option value="Clay">Clay</option>
                     <option value="Sandy">Sandy</option>
                     <option value="Alluvial">Alluvial</option>
+                    <option value="Peaty">Peaty</option>
                   </select>
                 </div>
               </div>
