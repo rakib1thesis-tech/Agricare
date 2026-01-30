@@ -14,7 +14,7 @@ export const generateMockSensorData = (fieldId: number): SensorData[] => {
     const date = new Date(now);
     date.setDate(date.getDate() - i);
     data.push({
-      data_id: Math.random(),
+      data_id: Math.floor(Math.random() * 1e9),
       field_id: fieldId,
       temperature: 24 + Math.random() * 8,
       moisture: 40 + Math.random() * 30,
