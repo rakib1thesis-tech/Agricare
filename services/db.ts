@@ -13,14 +13,10 @@ const firebaseConfig = {
   appId: "1:629410782904:web:4d8f43225d8a6b4ad15e4d"
 };
 
-/**
- * Singleton Firebase Initialization for version 12.8.0
- */
+// Initialize App once and cache it
 const app: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-/**
- * Service Exports - Initializing these immediately registers them with the app instance
- */
+// Explicitly register services to the specific app instance
 export const auth: Auth = getAuth(app);
 export const db: Firestore = getFirestore(app);
 
