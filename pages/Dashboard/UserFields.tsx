@@ -49,11 +49,10 @@ const UserFields: React.FC<{ user: User }> = ({ user }) => {
     try {
       const fieldSensors = await syncSensorsFromDb([field]);
       const activeSensors = fieldSensors.filter(s => s.last_reading !== undefined);
-      setHasActiveSensors(activeSensors.length > 0);
+      const isPrecision = activeSensors.length > 0;
+      setHasActiveSensors(isPrecision);
       
-      // Strict data state - only values from registered sensors will be present
       const stats: any = {};
-      
       fieldSensors.forEach(s => {
         if (!s.last_reading) return;
         const t = s.sensor_type.toLowerCase();
@@ -68,6 +67,7 @@ const UserFields: React.FC<{ user: User }> = ({ user }) => {
       });
       setCurrentDataState(stats);
 
+      // AI now receives context about whether this is precision or baseline
       const [analysis, insight, plan] = await Promise.all([
         getCropAnalysis(field, stats),
         getSoilHealthSummary(field, stats),
@@ -116,7 +116,6 @@ const UserFields: React.FC<{ user: User }> = ({ user }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Sidebar */}
         <div className="lg:col-span-1 space-y-4">
           <div className="flex justify-between items-center px-2">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Your Plots</h3>
@@ -135,28 +134,20 @@ const UserFields: React.FC<{ user: User }> = ({ user }) => {
               >
                 <div className="font-bold text-slate-800 text-lg mb-1">{f.field_name}</div>
                 <div className="text-sm text-slate-400 font-medium">{f.location}</div>
-                <div className="mt-4 flex items-center gap-3">
-                  <span className="text-[10px] font-black uppercase tracking-tighter bg-white px-2 py-1 rounded shadow-sm text-slate-500">{f.soil_type}</span>
-                </div>
               </button>
             ))}
           </div>
         </div>
 
-        {/* Main Content */}
         <div className="lg:col-span-3">
           {!selectedField ? (
             <div className="bg-white rounded-[3rem] p-32 text-center border-dashed border-2 border-slate-200 flex flex-col items-center">
-              <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
-                <i className="fas fa-microscope text-4xl text-slate-200"></i>
-              </div>
+              <i className="fas fa-microscope text-4xl text-slate-200 mb-6"></i>
               <h3 className="text-slate-400 font-bold text-xl">Select a plot to activate AI reasoning.</h3>
             </div>
           ) : (
             <div className="space-y-8 animate-in fade-in duration-700">
-              {/* Pillar Visualization Header */}
               <div className="bg-slate-900 p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 blur-[100px] rounded-full"></div>
                 <div className="relative z-10">
                   <div className="flex justify-between items-start mb-10">
                     <div>
@@ -166,15 +157,22 @@ const UserFields: React.FC<{ user: User }> = ({ user }) => {
                         {hasActiveSensors ? (
                           <span className="bg-emerald-500 text-white text-[10px] font-black uppercase px-2 py-1 rounded-md tracking-widest shadow-lg shadow-emerald-500/20">Precision Analysis</span>
                         ) : (
-                          <span className="bg-slate-700 text-slate-300 text-[10px] font-black uppercase px-2 py-1 rounded-md tracking-widest">Baseline Estimate</span>
+                          <span className="bg-amber-500 text-white text-[10px] font-black uppercase px-2 py-1 rounded-md tracking-widest shadow-lg shadow-amber-500/30">Regional Baseline</span>
                         )}
                       </div>
                     </div>
-                    <div className="bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-xl flex items-center gap-2">
-                       <i className="fas fa-bolt text-emerald-400"></i>
-                       <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Live AI Stream</span>
-                    </div>
                   </div>
+
+                  {!hasActiveSensors && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 p-5 rounded-2xl mb-8 flex items-center gap-4">
+                      <div className="w-10 h-10 bg-amber-500/20 rounded-xl flex items-center justify-center shrink-0">
+                        <i className="fas fa-info-circle text-amber-400 text-xl"></i>
+                      </div>
+                      <p className="text-sm text-amber-100 font-medium leading-relaxed">
+                        <strong>Note:</strong> No sensors are registered to this plot. The analysis below is generated using <strong>regional agricultural defaults</strong> for <strong>{selectedField.soil_type}</strong> soil in <strong>{selectedField.location}</strong>.
+                      </p>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {[
@@ -183,7 +181,7 @@ const UserFields: React.FC<{ user: User }> = ({ user }) => {
                       { label: 'Temperature', val: currentDataState?.temperature != null ? `${currentDataState.temperature.toFixed(1)}°C` : 'Offline', icon: 'fa-temperature-half', color: 'text-orange-400', active: currentDataState?.temperature != null },
                       { label: 'NPK Balance', val: currentDataState?.npk_n != null ? 'Synced' : 'Offline', icon: 'fa-vial', color: 'text-emerald-400', active: currentDataState?.npk_n != null }
                     ].map((p, i) => (
-                      <div key={i} className={`bg-white/5 border border-white/10 p-4 rounded-2xl flex items-center gap-4 backdrop-blur-sm transition-opacity ${p.active ? 'opacity-100 border-white/30' : 'opacity-40'}`}>
+                      <div key={i} className={`bg-white/5 border border-white/10 p-4 rounded-2xl flex items-center gap-4 backdrop-blur-sm transition-all duration-500 ${p.active ? 'opacity-100 border-white/20' : 'opacity-30'}`}>
                         <i className={`fas ${p.icon} ${p.color} text-lg`}></i>
                         <div>
                           <div className="text-[8px] font-black uppercase text-slate-400 tracking-widest">{p.label}</div>
@@ -195,123 +193,91 @@ const UserFields: React.FC<{ user: User }> = ({ user }) => {
                 </div>
               </div>
 
-              {!hasActiveSensors && (
-                <div className="bg-amber-50 border border-amber-200 p-6 rounded-3xl flex items-center gap-6">
-                  <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center shrink-0">
-                    <i className="fas fa-triangle-exclamation text-xl"></i>
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-amber-900">Baseline Data Only</h4>
-                    <p className="text-sm text-amber-700">The analysis below is based on your field's <strong>{selectedField.soil_type}</strong> soil and <strong>{selectedField.location}</strong> location. For precision recommendations, please <a href="#sensors" className="font-bold underline">pair and update sensors</a>.</p>
-                  </div>
-                </div>
-              )}
-
               {loading ? (
-                <div className="bg-white p-32 text-center rounded-[3rem] border border-slate-100 shadow-sm flex flex-col items-center">
+                <div className="bg-white p-32 text-center rounded-[3rem] flex flex-col items-center">
                   <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-8"></div>
-                  <h3 className="text-2xl font-black text-slate-800">Processing Registered Telemetry...</h3>
-                  <p className="text-slate-400 mt-2">Gemini 3 Flash is analyzing your specific field pillars.</p>
+                  <h3 className="text-2xl font-black text-slate-800">Processing Insights...</h3>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  {/* Strategy Column */}
                   <div className="lg:col-span-2 space-y-8">
-                    {/* Restoration Card */}
-                    <div className="bg-white p-10 rounded-[3rem] border border-emerald-50 shadow-sm hover:shadow-xl transition-shadow relative overflow-hidden group">
-                      <div className="absolute top-0 right-0 p-8 text-emerald-500/5 text-8xl transition-transform group-hover:scale-110">
-                        <i className="fas fa-dna"></i>
-                      </div>
-                      <h3 className="font-black text-2xl text-slate-900 mb-6 flex items-center gap-3">
-                        <i className="fas fa-seedling text-emerald-600"></i> Soil Restoration Strategy
-                      </h3>
-                      
-                      <div className="space-y-6">
-                        <div className="p-8 rounded-[2rem] bg-emerald-50/50 text-slate-700 border border-emerald-50">
-                          <p className="text-lg leading-relaxed font-bold italic text-slate-800">
-                            "{soilInsight?.summary || "Analyzing sensor intersections..."}"
-                          </p>
+                    <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden group">
+                      {!hasActiveSensors && (
+                        <div className="absolute top-0 right-0 p-4">
+                           <span className="text-[8px] font-black uppercase bg-slate-100 text-slate-400 px-2 py-1 rounded">Estimated Data</span>
                         </div>
-                        
-                        <div className="bg-slate-900 text-white p-6 rounded-[2.5rem] flex items-center justify-between shadow-2xl group-hover:bg-slate-800 transition-colors">
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center">
-                              <i className="fas fa-hand-holding-droplet text-white"></i>
-                            </div>
-                            <div>
-                              <div className="text-[10px] font-black uppercase text-emerald-400 tracking-widest">Recommended Treatment</div>
-                              <div className="font-bold text-lg">{soilInsight?.soil_fertilizer || "Calculating..."}</div>
-                            </div>
-                          </div>
+                      )}
+                      <h3 className="font-black text-2xl text-slate-900 mb-6 flex items-center gap-3">
+                        <i className="fas fa-seedling text-emerald-600"></i> Soil Management Strategy
+                      </h3>
+                      <div className="p-8 rounded-[2rem] bg-emerald-50/50 text-slate-700 border border-emerald-50 mb-6">
+                        <p className="text-lg leading-relaxed font-bold italic text-slate-800">
+                          "{soilInsight?.summary || "Generating analysis..."}"
+                        </p>
+                      </div>
+                      <div className="bg-slate-900 text-white p-6 rounded-[2.5rem] flex items-center gap-4">
+                        <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center">
+                          <i className="fas fa-hand-holding-droplet"></i>
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-black uppercase text-emerald-400 tracking-widest">Recommended Action</div>
+                          <div className="font-bold text-lg">{soilInsight?.soil_fertilizer || "Awaiting Data"}</div>
                         </div>
                       </div>
                     </div>
-                    
-                    {/* Crop Index */}
+
                     <div>
-                      <h3 className="font-black text-2xl text-slate-900 mb-8 flex items-center gap-3 px-4">
-                        <i className="fas fa-microscope text-emerald-600"></i> Harvest Compatibility Index
-                      </h3>
+                      <div className="flex justify-between items-end mb-8 px-4">
+                        <h3 className="font-black text-2xl text-slate-900 flex items-center gap-3">
+                          <i className="fas fa-chart-line text-emerald-600"></i> Harvest Compatibility Index
+                        </h3>
+                        {!hasActiveSensors && (
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-1 rounded-md mb-1">Regional Avg Analysis</span>
+                        )}
+                      </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {recommendations && recommendations.length > 0 ? recommendations.map((r, i) => (
-                          <div key={i} className="bg-white p-8 rounded-[3rem] border border-slate-100 hover:shadow-2xl transition-all hover:-translate-y-1">
-                            <div className="flex justify-between items-start mb-8">
-                              <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-3xl flex items-center justify-center shadow-inner">
-                                <i className={`fas ${r.icon || 'fa-seedling'} text-2xl`}></i>
+                        {recommendations?.map((r, i) => (
+                          <div key={i} className="bg-white p-8 rounded-[3rem] border border-slate-100 hover:shadow-xl transition-all hover:-translate-y-1">
+                            <div className="flex justify-between items-start mb-6">
+                              <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center">
+                                <i className={`fas ${r.icon} text-2xl text-emerald-600`}></i>
                               </div>
                               <div className="text-right">
-                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Match</div>
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Suitability</div>
                                 <div className="text-2xl font-black text-slate-900">{r.suitability}%</div>
                               </div>
                             </div>
                             <h4 className="font-black text-slate-900 text-xl mb-4">{r.name}</h4>
-                            <div className="space-y-4">
-                              <div className="bg-emerald-600 p-5 rounded-[1.5rem] shadow-lg shadow-emerald-100">
-                                <div className="text-[10px] font-black text-emerald-200 uppercase mb-2 flex items-center gap-2">
-                                  <i className="fas fa-flask-vial"></i> Optimal Supplement
-                                </div>
-                                <p className="text-xs font-bold text-white leading-relaxed">{r.fertilizer}</p>
-                              </div>
-                              <p className="text-[11px] text-slate-500 leading-tight italic pt-2">"{r.requirements}"</p>
+                            <div className="bg-slate-50 p-4 rounded-2xl mb-4">
+                               <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Primary Feed</div>
+                               <div className="text-xs font-bold text-slate-700">{r.fertilizer}</div>
                             </div>
+                            <p className="text-[11px] text-slate-500 leading-relaxed italic">"{r.requirements}"</p>
                           </div>
-                        )) : (
-                          <div className="col-span-full py-20 bg-slate-50 rounded-[3rem] border border-dashed text-center text-slate-300">
-                             <p>Awaiting harvest correlation data...</p>
-                          </div>
-                        )}
+                        ))}
                       </div>
                     </div>
                   </div>
-                  
-                  {/* Roadmap Column */}
+
                   <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm h-fit sticky top-24">
                     <h3 className="font-black text-2xl text-slate-900 mb-10 flex items-center gap-3">
-                      <i className="fas fa-route text-emerald-600"></i> Operational Roadmap
+                       <i className="fas fa-route text-emerald-600"></i> Operational Roadmap
                     </h3>
                     <div className="space-y-10">
-                      {managementPlan && managementPlan.length > 0 ? (
-                        managementPlan.map((p, i) => (
-                          <div key={i} className="relative pl-8">
-                            <div className={`absolute left-0 top-0 bottom-0 w-1.5 rounded-full ${
-                              p.priority.toLowerCase().includes('crit') || p.priority.toLowerCase().includes('high') ? 'bg-red-500' : 'bg-emerald-500'
-                            }`}></div>
-                            <div className={`text-[10px] font-black uppercase tracking-widest mb-2 ${
-                              p.priority.toLowerCase().includes('crit') || p.priority.toLowerCase().includes('high') ? 'text-red-500' : 'text-emerald-500'
-                            }`}>
-                              {p.priority} Priority
-                            </div>
-                            <h4 className="font-black text-slate-900 mb-2 leading-tight">{p.title}</h4>
-                            <p className="text-xs text-slate-500 leading-relaxed font-medium">{p.description}</p>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-20 opacity-30">
-                           <i className="fas fa-list-check text-4xl mb-4"></i>
-                           <p className="font-bold text-sm">Building roadmap...</p>
+                      {managementPlan?.map((p, i) => (
+                        <div key={i} className="relative pl-8">
+                          <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-full ${p.priority === 'HIGH' || p.priority === 'URGENT' ? 'bg-red-500' : 'bg-emerald-500'}`}></div>
+                          <div className={`text-[10px] font-black uppercase mb-1 ${p.priority === 'HIGH' || p.priority === 'URGENT' ? 'text-red-500' : 'text-emerald-500'}`}>{p.priority} Priority</div>
+                          <h4 className="font-black text-slate-900 mb-1">{p.title}</h4>
+                          <p className="text-xs text-slate-500 leading-relaxed">{p.description}</p>
                         </div>
-                      )}
+                      ))}
                     </div>
+                    {!hasActiveSensors && (
+                      <div className="mt-10 p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center">
+                         <p className="text-[10px] text-slate-400 font-bold leading-tight">Install moisture and NPK sensors to unlock precision tasks.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -319,36 +285,6 @@ const UserFields: React.FC<{ user: User }> = ({ user }) => {
           )}
         </div>
       </div>
-
-      {showAddFieldModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-[3rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in duration-300">
-            <h2 className="text-3xl font-black mb-8 text-slate-900">New Plot Deployment</h2>
-            <form onSubmit={handleAddField} className="space-y-6">
-              <div>
-                <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">Plot Name</label>
-                <input required type="text" value={newFieldData.name} onChange={e => setNewFieldData({...newFieldData, name: e.target.value})} className="w-full px-6 py-4 rounded-2xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-emerald-500 font-medium" placeholder="Rice Paddy A" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">Size (ha)</label>
-                  <input required type="number" step="0.1" value={newFieldData.size} onChange={e => setNewFieldData({...newFieldData, size: e.target.value})} className="w-full px-6 py-4 rounded-2xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-emerald-500 font-medium" placeholder="1.2" />
-                </div>
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">Soil Type</label>
-                  <select value={newFieldData.soilType} onChange={e => setNewFieldData({...newFieldData, soilType: e.target.value})} className="w-full px-6 py-4 rounded-2xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-emerald-500 font-black">
-                    <option value="Loamy">Loamy</option>
-                    <option value="Clay">Clay</option>
-                    <option value="Sandy">Sandy</option>
-                  </select>
-                </div>
-              </div>
-              <button type="submit" className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-emerald-200 hover:bg-emerald-700 transition-all">Register Plot</button>
-              <button type="button" onClick={() => setShowAddFieldModal(false)} className="w-full py-2 text-slate-400 font-bold text-xs uppercase hover:text-slate-600">Cancel</button>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
