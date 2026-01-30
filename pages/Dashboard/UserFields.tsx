@@ -24,6 +24,7 @@ const UserFields: React.FC<{ user: User }> = ({ user }) => {
   const [managementPlan, setManagementPlan] = useState<ManagementTask[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentDataState, setCurrentDataState] = useState<any>(null);
+  const [hasActiveSensors, setHasActiveSensors] = useState(false);
   const [showAddFieldModal, setShowAddFieldModal] = useState(false);
   const [newFieldData, setNewFieldData] = useState({ name: '', location: '', size: '', soilType: 'Loamy' });
 
@@ -47,6 +48,8 @@ const UserFields: React.FC<{ user: User }> = ({ user }) => {
     
     try {
       const fieldSensors = await syncSensorsFromDb([field]);
+      const activeSensors = fieldSensors.filter(s => s.last_reading !== undefined);
+      setHasActiveSensors(activeSensors.length > 0);
       
       // Strict data state - only values from registered sensors will be present
       const stats: any = {};
@@ -158,7 +161,14 @@ const UserFields: React.FC<{ user: User }> = ({ user }) => {
                   <div className="flex justify-between items-start mb-10">
                     <div>
                       <h2 className="text-5xl font-black tracking-tight mb-2">{selectedField.field_name}</h2>
-                      <p className="text-slate-400 text-lg font-medium">{selectedField.location} • {selectedField.size} ha</p>
+                      <div className="flex items-center gap-3">
+                        <p className="text-slate-400 text-lg font-medium">{selectedField.location} • {selectedField.size} ha</p>
+                        {hasActiveSensors ? (
+                          <span className="bg-emerald-500 text-white text-[10px] font-black uppercase px-2 py-1 rounded-md tracking-widest shadow-lg shadow-emerald-500/20">Precision Analysis</span>
+                        ) : (
+                          <span className="bg-slate-700 text-slate-300 text-[10px] font-black uppercase px-2 py-1 rounded-md tracking-widest">Baseline Estimate</span>
+                        )}
+                      </div>
                     </div>
                     <div className="bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-xl flex items-center gap-2">
                        <i className="fas fa-bolt text-emerald-400"></i>
@@ -168,12 +178,12 @@ const UserFields: React.FC<{ user: User }> = ({ user }) => {
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {[
-                      { label: 'Moisture', val: currentDataState?.moisture != null ? `${currentDataState.moisture.toFixed(1)}%` : 'Sensor Required', icon: 'fa-droplet', color: 'text-blue-400', active: currentDataState?.moisture != null },
-                      { label: 'pH Level', val: currentDataState?.ph_level != null ? currentDataState.ph_level.toFixed(1) : 'Sensor Required', icon: 'fa-scale-balanced', color: 'text-purple-400', active: currentDataState?.ph_level != null },
-                      { label: 'Temperature', val: currentDataState?.temperature != null ? `${currentDataState.temperature.toFixed(1)}°C` : 'Sensor Required', icon: 'fa-temperature-half', color: 'text-orange-400', active: currentDataState?.temperature != null },
-                      { label: 'NPK Balance', val: currentDataState?.npk_n != null ? 'Synced' : 'Sensor Required', icon: 'fa-vial', color: 'text-emerald-400', active: currentDataState?.npk_n != null }
+                      { label: 'Moisture', val: currentDataState?.moisture != null ? `${currentDataState.moisture.toFixed(1)}%` : 'Offline', icon: 'fa-droplet', color: 'text-blue-400', active: currentDataState?.moisture != null },
+                      { label: 'pH Level', val: currentDataState?.ph_level != null ? currentDataState.ph_level.toFixed(1) : 'Offline', icon: 'fa-scale-balanced', color: 'text-purple-400', active: currentDataState?.ph_level != null },
+                      { label: 'Temperature', val: currentDataState?.temperature != null ? `${currentDataState.temperature.toFixed(1)}°C` : 'Offline', icon: 'fa-temperature-half', color: 'text-orange-400', active: currentDataState?.temperature != null },
+                      { label: 'NPK Balance', val: currentDataState?.npk_n != null ? 'Synced' : 'Offline', icon: 'fa-vial', color: 'text-emerald-400', active: currentDataState?.npk_n != null }
                     ].map((p, i) => (
-                      <div key={i} className={`bg-white/5 border border-white/10 p-4 rounded-2xl flex items-center gap-4 backdrop-blur-sm transition-opacity ${p.active ? 'opacity-100' : 'opacity-40'}`}>
+                      <div key={i} className={`bg-white/5 border border-white/10 p-4 rounded-2xl flex items-center gap-4 backdrop-blur-sm transition-opacity ${p.active ? 'opacity-100 border-white/30' : 'opacity-40'}`}>
                         <i className={`fas ${p.icon} ${p.color} text-lg`}></i>
                         <div>
                           <div className="text-[8px] font-black uppercase text-slate-400 tracking-widest">{p.label}</div>
@@ -185,11 +195,23 @@ const UserFields: React.FC<{ user: User }> = ({ user }) => {
                 </div>
               </div>
 
+              {!hasActiveSensors && (
+                <div className="bg-amber-50 border border-amber-200 p-6 rounded-3xl flex items-center gap-6">
+                  <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center shrink-0">
+                    <i className="fas fa-triangle-exclamation text-xl"></i>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-amber-900">Baseline Data Only</h4>
+                    <p className="text-sm text-amber-700">The analysis below is based on your field's <strong>{selectedField.soil_type}</strong> soil and <strong>{selectedField.location}</strong> location. For precision recommendations, please <a href="#sensors" className="font-bold underline">pair and update sensors</a>.</p>
+                  </div>
+                </div>
+              )}
+
               {loading ? (
                 <div className="bg-white p-32 text-center rounded-[3rem] border border-slate-100 shadow-sm flex flex-col items-center">
                   <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-8"></div>
                   <h3 className="text-2xl font-black text-slate-800">Processing Registered Telemetry...</h3>
-                  <p className="text-slate-400 mt-2">Gemini 2.5 Flash is analyzing your specific field pillars.</p>
+                  <p className="text-slate-400 mt-2">Gemini 3 Flash is analyzing your specific field pillars.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
