@@ -88,13 +88,20 @@ export const addFieldToDb = async (field: Field): Promise<void> => {
   }
 };
 
+const FIRESTORE_IN_QUERY_LIMIT = 10;
+
 export const syncSensorsFromDb = async (userFields: Field[]): Promise<Sensor[]> => {
   if (!db || userFields.length === 0) return [];
   try {
     const userFieldIds = userFields.map(f => f.field_id);
-    const q = query(collection(db, 'sensors'), where('field_id', 'in', userFieldIds));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => d.data() as Sensor);
+    const allSensors: Sensor[] = [];
+    for (let i = 0; i < userFieldIds.length; i += FIRESTORE_IN_QUERY_LIMIT) {
+      const chunk = userFieldIds.slice(i, i + FIRESTORE_IN_QUERY_LIMIT);
+      const q = query(collection(db, 'sensors'), where('field_id', 'in', chunk));
+      const snap = await getDocs(q);
+      allSensors.push(...snap.docs.map(d => d.data() as Sensor));
+    }
+    return allSensors;
   } catch (e) {
     handleFirestoreError(e, 'sensors');
     return [];
@@ -135,13 +142,16 @@ export const saveManualDiagnostic = async (fieldId: number, data: any): Promise<
 export const getManualDiagnosticsForFields = async (fieldIds: number[]): Promise<Record<number, any>> => {
   if (!db || fieldIds.length === 0) return {};
   try {
-    const q = query(collection(db, 'manual_diagnostics'), where('field_id', 'in', fieldIds));
-    const snap = await getDocs(q);
     const results: Record<number, any> = {};
-    snap.forEach(doc => {
-      const data = doc.data();
-      results[data.field_id] = data;
-    });
+    for (let i = 0; i < fieldIds.length; i += FIRESTORE_IN_QUERY_LIMIT) {
+      const chunk = fieldIds.slice(i, i + FIRESTORE_IN_QUERY_LIMIT);
+      const q = query(collection(db, 'manual_diagnostics'), where('field_id', 'in', chunk));
+      const snap = await getDocs(q);
+      snap.forEach(snapDoc => {
+        const data = snapDoc.data();
+        results[data.field_id] = data;
+      });
+    }
     return results;
   } catch (e) {
     handleFirestoreError(e, 'manual_diagnostics');
