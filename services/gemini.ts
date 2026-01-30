@@ -3,58 +3,10 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Field, CropRecommendation } from "../types";
 
 /**
- * Multi-Key Rotation System
- * Cycles through up to 3 keys from environment variables.
+ * Standard AI Client initialization per @google/genai guidelines.
  */
-class RotatingAIProvider {
-  private keys: string[];
-  private currentIndex: number = 0;
-  private instances: Map<string, any> = new Map();
-
-  constructor() {
-    this.keys = [
-      process.env.API_KEY,
-      (process as any).env.API_KEY_2,
-      (process as any).env.API_KEY_3
-    ].filter(k => k && k.length > 5) as string[];
-  }
-
-  private getClient() {
-    if (this.keys.length === 0) {
-      throw new Error("No API keys configured. Ensure process.env.API_KEY is defined.");
-    }
-    const key = this.keys[this.currentIndex];
-    if (!this.instances.has(key)) {
-      this.instances.set(key, new GoogleGenAI({ apiKey: key }));
-    }
-    return this.instances.get(key);
-  }
-
-  private rotate() {
-    if (this.keys.length > 1) {
-      this.currentIndex = (this.currentIndex + 1) % this.keys.length;
-    }
-  }
-
-  async generate(params: any, retries = 2): Promise<any> {
-    try {
-      const ai = this.getClient();
-      return await ai.models.generateContent(params);
-    } catch (error: any) {
-      const errorMsg = error.message?.toLowerCase() || "";
-      const isRetryable = errorMsg.includes("429") || errorMsg.includes("quota") || errorMsg.includes("rate limit");
-      
-      if (isRetryable && retries > 0) {
-        this.rotate();
-        await new Promise(resolve => setTimeout(resolve, 300));
-        return this.generate(params, retries - 1);
-      }
-      throw error;
-    }
-  }
-}
-
-const aiProvider = new RotatingAIProvider();
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const MODEL_NAME = 'gemini-3-flash-preview';
 
 export const isAiReady = async () => {
   return !!process.env.API_KEY;
@@ -76,16 +28,19 @@ const cleanAndParseJSON = (text: string | undefined) => {
 const formatDataForPrompt = (data: any) => {
   const format = (key: string, label: string, unit: string = '') => {
     const val = data[key];
-    if (val === undefined || val === null) return `${label}: [MISSING - SENSOR NOT REGISTERED]`;
+    if (val === undefined || val === null) return `${label}: [OFFLINE - DATA UNAVAILABLE]`;
     return `${label}: ${Number(val).toFixed(2)}${unit}`;
   };
 
+  const hasTelemetry = data.moisture !== undefined || data.ph_level !== undefined || data.npk_n !== undefined;
+
   const npkStatus = (data.npk_n !== undefined) 
     ? `Nitrogen=${data.npk_n}, Phosphorus=${data.npk_p}, Potassium=${data.npk_k}` 
-    : "[MISSING - NPK ANALYZER NOT REGISTERED]";
+    : "[OFFLINE - DATA UNAVAILABLE]";
 
   return `
-    [INSTALLED SENSOR PILLARS]
+    [TELEMETRY STATUS: ${hasTelemetry ? 'ACTIVE' : 'BASELINE ESTIMATE ONLY'}]
+    
     1. MOISTURE: ${format('moisture', 'Current Reading', '%')}
     2. pH LEVEL: ${format('ph_level', 'Current Reading')}
     3. NPK PROFILE: ${npkStatus}
@@ -93,11 +48,11 @@ const formatDataForPrompt = (data: any) => {
     
     FIELD CONTEXT: ${data.field_name} at ${data.location}, Soil Type: ${data.soil_type || 'Loamy'}.
     
-    IMPORTANT: You MUST NOT invent data for categories marked as [MISSING]. If a category is missing, do not include it in the restoration strategy; instead, briefly note that a sensor is required for that metric.
+    INSTRUCTION: 
+    - If TELEMETRY is ACTIVE, provide precision advice based on the numbers.
+    - If TELEMETRY is BASELINE ESTIMATE ONLY, provide regional agricultural best-practices based on the Field Context (Soil Type and Location) and explicitly mention that these are regional estimates.
   `;
 };
-
-const MODEL_NAME = 'gemini-2.5-flash-preview-09-2025';
 
 export interface SoilInsight {
   summary: string;
@@ -119,9 +74,9 @@ export interface ManagementPrescription {
 
 export const getCropAnalysis = async (field: Field, latestData: any): Promise<CropRecommendation[]> => {
   try {
-    const response = await aiProvider.generate({
+    const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: `Suggest 3 crops based ONLY on available telemetry. ${formatDataForPrompt({...latestData, ...field})}`,
+      contents: `Suggest 3 crops based on the available telemetry or regional context. ${formatDataForPrompt({...latestData, ...field})}`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -149,9 +104,9 @@ export const getCropAnalysis = async (field: Field, latestData: any): Promise<Cr
 
 export const getSoilHealthSummary = async (field: Field, latestData: any): Promise<SoilInsight> => {
   try {
-    const response = await aiProvider.generate({
+    const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: `Provide Soil Restoration Strategy for these specific pillars. Ignore missing sensors. ${formatDataForPrompt({...latestData, ...field})}`,
+      contents: `Provide Soil Restoration Strategy. ${formatDataForPrompt({...latestData, ...field})}`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -172,9 +127,9 @@ export const getSoilHealthSummary = async (field: Field, latestData: any): Promi
 
 export const getManagementPrescriptions = async (field: Field, latestData: any): Promise<ManagementPrescription> => {
   try {
-    const response = await aiProvider.generate({
+    const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: `Create management prescriptions for these registered sensors only. ${formatDataForPrompt({...latestData, ...field})}`,
+      contents: `Create management prescriptions based on telemetry or regional baseline. ${formatDataForPrompt({...latestData, ...field})}`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -221,9 +176,9 @@ export const getManagementPrescriptions = async (field: Field, latestData: any):
 
 export const getDetailedManagementPlan = async (field: Field, latestData: any) => {
   try {
-    const response = await aiProvider.generate({
+    const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: `Build a 4-step Operational Roadmap based ONLY on these detected sensors. ${formatDataForPrompt({...latestData, ...field})}`,
+      contents: `Build a 4-step Operational Roadmap. ${formatDataForPrompt({...latestData, ...field})}`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
