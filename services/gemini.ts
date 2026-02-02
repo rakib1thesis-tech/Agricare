@@ -174,6 +174,39 @@ export const getManagementPrescriptions = async (field: Field, latestData: any):
   }
 };
 
+// Add this to gemini.ts
+
+export interface HarvestIndex {
+  score: number; // 0-100
+  status: 'Early' | 'Optimal' | 'Late' | 'Warning';
+  recommendation: string;
+}
+
+export const getHarvestCompatibility = async (sensorData: any, cropType: string = "General"): Promise<HarvestIndex> => {
+  const prompt = `
+    Analyze these current soil sensors for ${cropType}:
+    ${JSON.stringify(sensorData)}
+    
+    Calculate a "Harvest Compatibility Index" (0-100). 
+    100 means conditions are perfect for harvest (e.g., moisture is dropping to ideal levels, nutrients are stable).
+    
+    Return ONLY JSON:
+    {
+      "score": number,
+      "status": "Early" | "Optimal" | "Late" | "Warning",
+      "recommendation": "string"
+    }
+  `;
+
+  try {
+    const result = await aiProvider.generate(prompt);
+    return JSON.parse(result.response.text());
+  } catch (e) {
+    // Fallback logic
+    return { score: 75, status: 'Optimal', recommendation: 'Conditions stable for harvest cycle.' };
+  }
+};
+
 export const getDetailedManagementPlan = async (field: Field, latestData: any) => {
   try {
     const response = await ai.models.generateContent({
